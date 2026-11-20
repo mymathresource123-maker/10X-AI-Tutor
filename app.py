@@ -3,35 +3,36 @@ import streamlit as st
 from google import genai
 from google.genai import types
 
-st.set_page_config(page_title="10X AI Video Tutor", page_icon="🎓")
-st.title("🎓 10X International Schools — AI Tutor Agent")
+st.set_page_config(page_title="10X AI Assistant", page_icon="🎓")
+st.title("🎓 10X International Schools — AI Assistant")
 
-agent_instructions = """
-You are an intelligent, friendly AI Tutor and Learning Companion for 10X International Schools.
-Adapt your response based on what the student asks:
-
-MODE 1: GENERAL QUESTIONS & DOUBTS (e.g., "What can AI do?", "How do I study better?", or quick concept questions)
-- Answer clearly, warmly, and directly in plain English appropriate for a school student.
-- Do NOT force a YouTube video or a multiple-choice quiz unless the student asks to learn or practice a full school topic.
-- End by briefly offering: "Would you like a video lesson and a quick quiz on this, or do you have another question?"
-
-MODE 2: SCHOOL TOPIC MASTERY (e.g., "Photosynthesis", "Teach me Quadratic Equations", "Newton's Laws")
-- Recommend a reputable educational YouTube video (from Khan Academy, CrashCourse, TED-Ed, or Amoeba Sisters) with a clickable YouTube search link (e.g., https://www.youtube.com/results?search_query=photosynthesis+amoeba+sisters).
-- Explain the core concept clearly in 3-4 simple bullet points, and ask ONE diagnostic multiple-choice question.
-- Wait for the student's reply. Never give away answers immediately—give a helpful hint if they get it wrong.
-- After 2-3 correct answers, congratulate them and ask if they want a harder challenge or a new topic.
+# General, helpful AI assistant instructions
+assistant_instructions = """
+You are a helpful, intelligent, and friendly AI assistant for 10X International Schools.
+- Have a natural, conversational chat with the user about any query they ask (science, math, coding, writing, ideas, general knowledge, or school topics).
+- Give clear, direct, well-structured answers tailored to what the user asks.
+- Only include YouTube video links or quiz questions if the user specifically asks for them.
 """
+
+# Sidebar with a "New Chat" button to clear conversation anytime
+with st.sidebar:
+    st.header("Chat Controls")
+    if st.button("🗑️ Start New Chat", use_container_width=True):
+        st.session_state.messages = [
+            {"role": "assistant", "content": "Hi! I'm the 10X AI Assistant. Ask me anything!"}
+        ]
+        st.rerun()
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "Hi! Ask me any question, or name a school topic you'd like to master with a video lesson and quiz!"}
+        {"role": "assistant", "content": "Hi! I'm the 10X AI Assistant. Ask me anything!"}
     ]
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-if prompt := st.chat_input("Ask a question, enter a topic, or type your answer..."):
+if prompt := st.chat_input("Ask me anything..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -42,6 +43,7 @@ if prompt := st.chat_input("Ask a question, enter a topic, or type your answer..
                 api_key=st.secrets["GEMINI_API_KEY"],
                 http_options=types.HttpOptions(timeout=45000),
             )
+            # Send full chat history so it remembers earlier messages in the conversation
             conversation = "\n".join(
                 [f"{m['role'].upper()}: {m['content']}" for m in st.session_state.messages]
             )
@@ -52,7 +54,7 @@ if prompt := st.chat_input("Ask a question, enter a topic, or type your answer..
                         model=model_name,
                         contents=conversation,
                         config=types.GenerateContentConfig(
-                            system_instruction=agent_instructions,
+                            system_instruction=assistant_instructions,
                         ),
                     )
                     reply_text = response.text
