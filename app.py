@@ -5,8 +5,6 @@ from google.genai import types
 st.set_page_config(page_title="10X AI Video Tutor", page_icon="🎓")
 st.title("🎓 10X International Schools — AI Tutor Agent")
 
-client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-
 agent_instructions = """
 You are an autonomous AI Tutor for 10X International Schools.
 1. When a student names a topic, use Google Search to find a real, reputable educational YouTube video (e.g., Khan Academy, CrashCourse, TED-Ed, Amoeba Sisters) on that topic.
@@ -15,12 +13,14 @@ You are an autonomous AI Tutor for 10X International Schools.
 4. After 2-3 correct answers, congratulate them and ask if they want a harder challenge or a new topic.
 """
 
-if "chat" not in st.session_state:
-    st.session_state.chat = client.chats.create(
+# Keep BOTH the client and the chat alive across browser reruns
+if "client" not in st.session_state:
+    st.session_state.client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+    st.session_state.chat = st.session_state.client.chats.create(
         model="gemini-3.8-flash",
         config=types.GenerateContentConfig(
             system_instruction=agent_instructions,
-            tools=[{"google_search": {}}],  # Uses Google's own search—never blocked by YouTube!
+            tools=[{"google_search": {}}],
         ),
     )
     st.session_state.messages = [
