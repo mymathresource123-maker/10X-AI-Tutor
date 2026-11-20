@@ -1,3 +1,4 @@
+import time
 import streamlit as st
 from google import genai
 from google.genai import types
@@ -29,25 +30,30 @@ if prompt := st.chat_input("Type a topic or your answer..."):
 
     with st.chat_message("assistant"):
         with st.spinner("Preparing your lesson..."):
-            try:
-                client = genai.Client(
-                    api_key=st.secrets["GEMINI_API_KEY"],
-                    http_options=types.HttpOptions(timeout=45000),  # 45-second timeout
-                )
-                conversation = "\n".join(
-                    [f"{m['role'].upper()}: {m['content']}" for m in st.session_state.messages]
-                )
-                response = client.models.generate_content(
-                    model="gemini-3.8-flash",
-                    contents=conversation,
-                    config=types.GenerateContentConfig(
-                        system_instruction=agent_instructions,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),  # Instant replies!
-                    ),
-                )
-                reply_text = response.text
-            except Exception as e:
-                reply_text = f"⚠️ Could not connect in time: {e}"
+            client = genai.Client(
+                api_key=st.secrets["GEMINI_API_KEY"],
+                http_options=types.HttpOptions(timeout=45000),
+            )
+            conversation = "\n".join(
+                [f"{m['role'].upper()}: {m['content']}" for m in st.session_state.messages]
+            )
+            reply_text = None
+            for model_name in ["gemini-3.8-flash", "gemini-3.8-flash", "gemini-2.5-pro"]:
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=conversation,
+                        config=types.GenerateContentConfig(
+                            system_instruction=agent_instructions,
+                        ),
+                    )
+                    reply_text = response.text
+                    break
+                except Exception:
+                    time.sleep(2)
+
+            if not reply_text:
+                reply_text = "⚠️ Google's AI servers are experiencing a brief traffic spike. Please send your message again in a few seconds!"
             st.markdown(reply_text)
 
     st.session_state.messages.append({"role": "assistant", "content": reply_text})
