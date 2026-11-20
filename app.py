@@ -46,7 +46,7 @@ if prompt := st.chat_input("Ask me anything..."):
             )
             reply_text = None
             last_error = ""
-            for model_name in ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-2.5-pro"]:
+            for model_name in ["gemini-3.8-flash", "gemini-3.1-pro-preview"]:
                 try:
                     response = client.models.generate_content(
                         model=model_name,
