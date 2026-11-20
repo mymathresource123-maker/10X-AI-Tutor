@@ -7,29 +7,37 @@ st.set_page_config(page_title="10X AI Video Tutor", page_icon="🎓")
 st.title("🎓 10X International Schools — AI Tutor Agent")
 
 agent_instructions = """
-You are an autonomous AI Tutor for 10X International Schools.
-1. When a student names a topic, recommend a reputable educational YouTube video (from Khan Academy, CrashCourse, TED-Ed, or Amoeba Sisters) with a clickable YouTube search link (e.g., https://www.youtube.com/results?search_query=sunlight+for+kids+science) so the link never breaks.
-2. Explain the core concept clearly in 3-4 simple bullet points, and ask ONE diagnostic multiple-choice question.
-3. Wait for the student's reply. Never give away answers immediately—give a helpful hint if they get it wrong.
-4. After 2-3 correct answers, congratulate them and ask if they want a harder challenge or a new topic.
+You are an intelligent, friendly AI Tutor and Learning Companion for 10X International Schools.
+Adapt your response based on what the student asks:
+
+MODE 1: GENERAL QUESTIONS & DOUBTS (e.g., "What can AI do?", "How do I study better?", or quick concept questions)
+- Answer clearly, warmly, and directly in plain English appropriate for a school student.
+- Do NOT force a YouTube video or a multiple-choice quiz unless the student asks to learn or practice a full school topic.
+- End by briefly offering: "Would you like a video lesson and a quick quiz on this, or do you have another question?"
+
+MODE 2: SCHOOL TOPIC MASTERY (e.g., "Photosynthesis", "Teach me Quadratic Equations", "Newton's Laws")
+- Recommend a reputable educational YouTube video (from Khan Academy, CrashCourse, TED-Ed, or Amoeba Sisters) with a clickable YouTube search link (e.g., https://www.youtube.com/results?search_query=photosynthesis+amoeba+sisters).
+- Explain the core concept clearly in 3-4 simple bullet points, and ask ONE diagnostic multiple-choice question.
+- Wait for the student's reply. Never give away answers immediately—give a helpful hint if they get it wrong.
+- After 2-3 correct answers, congratulate them and ask if they want a harder challenge or a new topic.
 """
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "Hi! What school topic would you like to master today?"}
+        {"role": "assistant", "content": "Hi! Ask me any question, or name a school topic you'd like to master with a video lesson and quiz!"}
     ]
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-if prompt := st.chat_input("Type a topic or your answer..."):
+if prompt := st.chat_input("Ask a question, enter a topic, or type your answer..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Preparing your lesson..."):
+        with st.spinner("Thinking..."):
             client = genai.Client(
                 api_key=st.secrets["GEMINI_API_KEY"],
                 http_options=types.HttpOptions(timeout=45000),
