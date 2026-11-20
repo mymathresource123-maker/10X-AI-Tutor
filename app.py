@@ -16,7 +16,7 @@ You are an autonomous AI Tutor for 10X International Schools.
 if "client" not in st.session_state:
     st.session_state.client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
     st.session_state.chat = st.session_state.client.chats.create(
-        model="gemini-3.8-flash-lite",
+        model="gemini-3.8-flash",
         config=types.GenerateContentConfig(
             system_instruction=agent_instructions,
         ),
