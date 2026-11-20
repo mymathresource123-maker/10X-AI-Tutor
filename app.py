@@ -7,20 +7,13 @@ st.title("🎓 10X International Schools — AI Tutor Agent")
 
 agent_instructions = """
 You are an autonomous AI Tutor for 10X International Schools.
-1. When a student names a topic, recommend a well-known educational YouTube video (from Khan Academy, CrashCourse, TED-Ed, or Amoeba Sisters) with a clickable YouTube search link (e.g., https://www.youtube.com/results?search_query=photosynthesis+amoeba+sisters) so the link never breaks.
+1. When a student names a topic, recommend a reputable educational YouTube video (from Khan Academy, CrashCourse, TED-Ed, or Amoeba Sisters) with a clickable YouTube search link (e.g., https://www.youtube.com/results?search_query=sunlight+for+kids+science) so the link never breaks.
 2. Explain the core concept clearly in 3-4 simple bullet points, and ask ONE diagnostic multiple-choice question.
 3. Wait for the student's reply. Never give away answers immediately—give a helpful hint if they get it wrong.
 4. After 2-3 correct answers, congratulate them and ask if they want a harder challenge or a new topic.
 """
 
-if "client" not in st.session_state:
-    st.session_state.client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-    st.session_state.chat = st.session_state.client.chats.create(
-        model="gemini-3.8-flash",
-        config=types.GenerateContentConfig(
-            system_instruction=agent_instructions,
-        ),
-    )
+if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "assistant", "content": "Hi! What school topic would you like to master today?"}
     ]
@@ -37,10 +30,24 @@ if prompt := st.chat_input("Type a topic or your answer..."):
     with st.chat_message("assistant"):
         with st.spinner("Preparing your lesson..."):
             try:
-                response = st.session_state.chat.send_message(prompt)
+                client = genai.Client(
+                    api_key=st.secrets["GEMINI_API_KEY"],
+                    http_options=types.HttpOptions(timeout=15000),  # 15-second max wait
+                )
+                # Send full conversation history cleanly on each turn
+                conversation = "\n".join(
+                    [f"{m['role'].upper()}: {m['content']}" for m in st.session_state.messages]
+                )
+                response = client.models.generate_content(
+                    model="gemini-3.8-flash",
+                    contents=conversation,
+                    config=types.GenerateContentConfig(
+                        system_instruction=agent_instructions,
+                    ),
+                )
                 reply_text = response.text
             except Exception as e:
-                reply_text = f"⚠️ Temporary limit reached—wait 30 seconds and try again! ({e})"
+                reply_text = f"⚠️ Could not connect in time: {e}"
             st.markdown(reply_text)
 
     st.session_state.messages.append({"role": "assistant", "content": reply_text})
