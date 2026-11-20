@@ -39,14 +39,28 @@ if prompt := st.chat_input("Ask me anything..."):
         with st.spinner("Thinking..."):
             client = genai.Client(
                 api_key=st.secrets["GEMINI_API_KEY"],
-                http_options=types.HttpOptions(timeout=45000),
+                http_options=types.HttpOptions(api_version="v1beta", timeout=45000),
             )
+            
+            # Automatically find all text-generation Gemini models enabled on your API key
+            if "available_models" not in st.session_state:
+                discovered = []
+                try:
+                    for m in client.models.list():
+                        if "gemini" in m.name.lower() and "embed" not in m.name.lower() and "image" not in m.name.lower():
+                            discovered.append(m.name.replace("models/", ""))
+                except Exception:
+                    pass
+                # Prioritize flash models first, then any other discovered Gemini models
+                flash_first = [m for m in discovered if "flash" in m] + [m for m in discovered if "flash" not in m]
+                st.session_state.available_models = flash_first or ["gemini-3.8-flash", "gemini-3.1-pro-preview"]
+
             conversation = "\n".join(
                 [f"{m['role'].upper()}: {m['content']}" for m in st.session_state.messages]
             )
             reply_text = None
             last_error = ""
-            for model_name in ["gemini-3.8-flash", "gemini-3.1-pro-preview"]:
+            for model_name in st.session_state.available_models[:4]:
                 try:
                     response = client.models.generate_content(
                         model=model_name,
@@ -58,11 +72,11 @@ if prompt := st.chat_input("Ask me anything..."):
                     reply_text = response.text
                     break
                 except Exception as e:
-                    last_error = str(e)
+                    last_error = f"({model_name}): {e}"
                     time.sleep(1)
 
             if not reply_text:
-                reply_text = f"⚠️ Error details: `{last_error}`"
+                reply_text = f"⚠️ Could not generate response. Tried: {st.session_state.available_models[:4]}. Last error: `{last_error}`"
             st.markdown(reply_text)
 
     st.session_state.messages.append({"role": "assistant", "content": reply_text})
