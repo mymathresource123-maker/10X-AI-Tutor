@@ -1,7 +1,5 @@
-import re
 import time
 import streamlit as st
-from youtube_search import YoutubeSearch
 from google import genai
 from google.genai import types
 
@@ -19,12 +17,14 @@ You are an enthusiastic, encouraging AI Tutor for 10X International Schools. Fol
 
 1. **When the student names a topic to learn:**
    - Excite them briefly about why the topic is cool (1-2 sentences).
-   - Output a video search tag on its own line in this exact format: `[VIDEO: short educational video search query]` (for example: `[VIDEO: photosynthesis amoeba sisters]` or `[VIDEO: quadratic equations khan academy]`).
+   - Provide a clickable YouTube video lesson link using a clean YouTube search URL formatted like this:
+     `📺 **Watch Your Mini Video Lesson:** [Click here to watch a short YouTube lesson on <Topic>](https://www.youtube.com/results?search_query=<topic+short+lesson+for+students>)`
+     (Replace spaces in the URL with `+`, and recommend a specific trusted channel like Amoeba Sisters, CrashCourse, TED-Ed, or Khan Academy to look for).
    - Give a crisp, easy-to-read 3-bullet summary of the core idea.
-   - Ask **ONE** diagnostic question to check their understanding, and tell them to watch the video and reply with their answer.
+   - Ask **ONE** diagnostic question to check their understanding, and invite them to watch the video and reply with their answer.
 
 2. **When the student answers your question:**
-   - Do NOT output a `[VIDEO: ...]` tag again unless they ask for a new video or a new topic.
+   - Do NOT repeat the YouTube video link unless they ask for a new video or a new topic.
    - If they are right: Celebrate their answer, explain briefly why it's correct, and ask a slightly deeper follow-up question to build mastery.
    - If they are wrong or unsure: Encourage them, give a helpful hint without giving away the answer, and let them try again.
    - After 2-3 correct answers, congratulate them on mastering the concept and ask what topic they want to tackle next!
@@ -33,43 +33,26 @@ You are an enthusiastic, encouraging AI Tutor for 10X International Schools. Fol
    - Answer helpfully and warmly, then invite them to pick a topic whenever they're ready to learn.
 """
 
-def find_youtube_url(query: str):
-    """Finds a real YouTube video URL quickly; returns None if blocked."""
-    try:
-        results = YoutubeSearch(query, max_results=1).to_dict()
-        if results and "id" in results[0]:
-            return f"https://www.youtube.com/watch?v={results[0]['id']}"
-    except Exception:
-        pass
-    return None
-
-def render_message(content: str, video_url: str = None):
-    # Remove the internal [VIDEO: ...] tag before showing text to the student
-    clean_text = re.sub(r"\[VIDEO:\s*.*?\]", "", content).strip()
-    st.markdown(clean_text)
-    if video_url:
-        st.video(video_url)
-
 with st.sidebar:
     st.header("Tutor Controls")
     if st.button("🗑️ Start New Lesson", use_container_width=True):
-        st.session_state.messages = [{"role": "assistant", "content": WELCOME_MSG, "video_url": None}]
+        st.session_state.messages = [{"role": "assistant", "content": WELCOME_MSG}]
         st.rerun()
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": WELCOME_MSG, "video_url": None}]
+    st.session_state.messages = [{"role": "assistant", "content": WELCOME_MSG}]
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
-        render_message(msg["content"], msg.get("video_url"))
+        st.markdown(msg["content"])
 
 if prompt := st.chat_input("Tell me a topic to learn, or type your answer..."):
-    st.session_state.messages.append({"role": "user", "content": prompt, "video_url": None})
+    st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Preparing your lesson & finding a video..."):
+        with st.spinner("Preparing your lesson..."):
             client = genai.Client(
                 api_key=st.secrets["GEMINI_API_KEY"],
                 http_options=types.HttpOptions(api_version="v1beta", timeout=45000),
@@ -106,13 +89,8 @@ if prompt := st.chat_input("Tell me a topic to learn, or type your answer..."):
                     last_error = f"({model_name}): {e}"
                     time.sleep(1)
 
-            video_url = None
-            if reply_text:
-                match = re.search(r"\[VIDEO:\s*(.*?)\]", reply_text)
-                if match:
-                    search_query = match.group(1).strip()
-                    video_url = find_youtube_url(search_query)
-                    if not video_url:
-                        # Fallback link if YouTube blocks cloud search
-                        yt_search_link = f"https://www.youtube.com/results?search_query={search_query.replace(' ', '+')}"
-                        reply_text += f"\n\n📺 **Watch a quick lesson on YouTube:** [Click here to watch videos on {search_query}]({yt_search_link})"
+            if not reply_text:
+                reply_text = f"⚠️ Temporary connection hiccup. Please try again! `{last_error}`"
+            st.markdown(reply_text)
+
+    st.session_state.messages.append({"role": "assistant", "content": reply_text})
