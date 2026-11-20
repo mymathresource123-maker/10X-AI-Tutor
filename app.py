@@ -32,9 +32,8 @@ if prompt := st.chat_input("Type a topic or your answer..."):
             try:
                 client = genai.Client(
                     api_key=st.secrets["GEMINI_API_KEY"],
-                    http_options=types.HttpOptions(timeout=15000),  # 15-second max wait
+                    http_options=types.HttpOptions(timeout=45000),  # 45-second timeout
                 )
-                # Send full conversation history cleanly on each turn
                 conversation = "\n".join(
                     [f"{m['role'].upper()}: {m['content']}" for m in st.session_state.messages]
                 )
@@ -43,6 +42,7 @@ if prompt := st.chat_input("Type a topic or your answer..."):
                     contents=conversation,
                     config=types.GenerateContentConfig(
                         system_instruction=agent_instructions,
+                        thinking_config=types.ThinkingConfig(thinking_budget=0),  # Instant replies!
                     ),
                 )
                 reply_text = response.text
