@@ -6,7 +6,6 @@ from google.genai import types
 st.set_page_config(page_title="10X AI Assistant", page_icon="🎓")
 st.title("🎓 10X International Schools — AI Assistant")
 
-# General, helpful AI assistant instructions
 assistant_instructions = """
 You are a helpful, intelligent, and friendly AI assistant for 10X International Schools.
 - Have a natural, conversational chat with the user about any query they ask (science, math, coding, writing, ideas, general knowledge, or school topics).
@@ -14,7 +13,6 @@ You are a helpful, intelligent, and friendly AI assistant for 10X International 
 - Only include YouTube video links or quiz questions if the user specifically asks for them.
 """
 
-# Sidebar with a "New Chat" button to clear conversation anytime
 with st.sidebar:
     st.header("Chat Controls")
     if st.button("🗑️ Start New Chat", use_container_width=True):
@@ -43,12 +41,12 @@ if prompt := st.chat_input("Ask me anything..."):
                 api_key=st.secrets["GEMINI_API_KEY"],
                 http_options=types.HttpOptions(timeout=45000),
             )
-            # Send full chat history so it remembers earlier messages in the conversation
             conversation = "\n".join(
                 [f"{m['role'].upper()}: {m['content']}" for m in st.session_state.messages]
             )
             reply_text = None
-            for model_name in ["gemini-3.8-flash", "gemini-3.8-flash", "gemini-2.5-pro"]:
+            last_error = ""
+            for model_name in ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-2.5-pro"]:
                 try:
                     response = client.models.generate_content(
                         model=model_name,
@@ -59,11 +57,12 @@ if prompt := st.chat_input("Ask me anything..."):
                     )
                     reply_text = response.text
                     break
-                except Exception:
-                    time.sleep(2)
+                except Exception as e:
+                    last_error = str(e)
+                    time.sleep(1)
 
             if not reply_text:
-                reply_text = "⚠️ Google's AI servers are experiencing a brief traffic spike. Please send your message again in a few seconds!"
+                reply_text = f"⚠️ Error details: `{last_error}`"
             st.markdown(reply_text)
 
     st.session_state.messages.append({"role": "assistant", "content": reply_text})
