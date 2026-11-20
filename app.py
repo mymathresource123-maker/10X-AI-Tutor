@@ -1,48 +1,80 @@
+import re
 import time
 import streamlit as st
+from youtube_search import YoutubeSearch
 from google import genai
 from google.genai import types
 
-st.set_page_config(page_title="10X AI Assistant", page_icon="🎓")
-st.title("🎓 10X International Schools — AI Assistant")
+st.set_page_config(page_title="10X AI Tutor", page_icon="🎓")
+st.title("🎓 10X International Schools — AI Tutor")
 
-assistant_instructions = """
-You are a helpful, intelligent, and friendly AI assistant for 10X International Schools.
-- Have a natural, conversational chat with the user about any query they ask (science, math, coding, writing, ideas, general knowledge, or school topics).
-- Give clear, direct, well-structured answers tailored to what the user asks.
-- Only include YouTube video links or quiz questions if the user specifically asks for them.
+WELCOME_MSG = (
+    "Hey there! 👋 I'm your **10X AI Tutor**, and I'm super excited to help you explore, "
+    "watch, and master any subject today! 🚀\n\n"
+    "**What topic shall we learn today?**"
+)
+
+tutor_instructions = """
+You are an enthusiastic, encouraging AI Tutor for 10X International Schools. Follow this exact learning loop:
+
+1. **When the student names a topic to learn:**
+   - Excite them briefly about why the topic is cool (1-2 sentences).
+   - Output a video search tag on its own line in this exact format: `[VIDEO: short educational video search query]` (for example: `[VIDEO: photosynthesis amoeba sisters]` or `[VIDEO: quadratic equations khan academy]`).
+   - Give a crisp, easy-to-read 3-bullet summary of the core idea.
+   - Ask **ONE** diagnostic question to check their understanding, and tell them to watch the video and reply with their answer.
+
+2. **When the student answers your question:**
+   - Do NOT output a `[VIDEO: ...]` tag again unless they ask for a new video or a new topic.
+   - If they are right: Celebrate their answer, explain briefly why it's correct, and ask a slightly deeper follow-up question to build mastery.
+   - If they are wrong or unsure: Encourage them, give a helpful hint without giving away the answer, and let them try again.
+   - After 2-3 correct answers, congratulate them on mastering the concept and ask what topic they want to tackle next!
+
+3. **If the student asks a general question (not a lesson topic):**
+   - Answer helpfully and warmly, then invite them to pick a topic whenever they're ready to learn.
 """
 
+def find_youtube_url(query: str):
+    """Finds a real YouTube video URL quickly; returns None if blocked."""
+    try:
+        results = YoutubeSearch(query, max_results=1).to_dict()
+        if results and "id" in results[0]:
+            return f"https://www.youtube.com/watch?v={results[0]['id']}"
+    except Exception:
+        pass
+    return None
+
+def render_message(content: str, video_url: str = None):
+    # Remove the internal [VIDEO: ...] tag before showing text to the student
+    clean_text = re.sub(r"\[VIDEO:\s*.*?\]", "", content).strip()
+    st.markdown(clean_text)
+    if video_url:
+        st.video(video_url)
+
 with st.sidebar:
-    st.header("Chat Controls")
-    if st.button("🗑️ Start New Chat", use_container_width=True):
-        st.session_state.messages = [
-            {"role": "assistant", "content": "Hi! I'm the 10X AI Assistant. Ask me anything!"}
-        ]
+    st.header("Tutor Controls")
+    if st.button("🗑️ Start New Lesson", use_container_width=True):
+        st.session_state.messages = [{"role": "assistant", "content": WELCOME_MSG, "video_url": None}]
         st.rerun()
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "assistant", "content": "Hi! I'm the 10X AI Assistant. Ask me anything!"}
-    ]
+    st.session_state.messages = [{"role": "assistant", "content": WELCOME_MSG, "video_url": None}]
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+        render_message(msg["content"], msg.get("video_url"))
 
-if prompt := st.chat_input("Ask me anything..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
+if prompt := st.chat_input("Tell me a topic to learn, or type your answer..."):
+    st.session_state.messages.append({"role": "user", "content": prompt, "video_url": None})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
+        with st.spinner("Preparing your lesson & finding a video..."):
             client = genai.Client(
                 api_key=st.secrets["GEMINI_API_KEY"],
                 http_options=types.HttpOptions(api_version="v1beta", timeout=45000),
             )
-            
-            # Automatically find all text-generation Gemini models enabled on your API key
+
             if "available_models" not in st.session_state:
                 discovered = []
                 try:
@@ -51,7 +83,6 @@ if prompt := st.chat_input("Ask me anything..."):
                             discovered.append(m.name.replace("models/", ""))
                 except Exception:
                     pass
-                # Prioritize flash models first, then any other discovered Gemini models
                 flash_first = [m for m in discovered if "flash" in m] + [m for m in discovered if "flash" not in m]
                 st.session_state.available_models = flash_first or ["gemini-3.8-flash", "gemini-3.1-pro-preview"]
 
@@ -66,7 +97,7 @@ if prompt := st.chat_input("Ask me anything..."):
                         model=model_name,
                         contents=conversation,
                         config=types.GenerateContentConfig(
-                            system_instruction=assistant_instructions,
+                            system_instruction=tutor_instructions,
                         ),
                     )
                     reply_text = response.text
@@ -75,8 +106,13 @@ if prompt := st.chat_input("Ask me anything..."):
                     last_error = f"({model_name}): {e}"
                     time.sleep(1)
 
-            if not reply_text:
-                reply_text = f"⚠️ Could not generate response. Tried: {st.session_state.available_models[:4]}. Last error: `{last_error}`"
-            st.markdown(reply_text)
-
-    st.session_state.messages.append({"role": "assistant", "content": reply_text})
+            video_url = None
+            if reply_text:
+                match = re.search(r"\[VIDEO:\s*(.*?)\]", reply_text)
+                if match:
+                    search_query = match.group(1).strip()
+                    video_url = find_youtube_url(search_query)
+                    if not video_url:
+                        # Fallback link if YouTube blocks cloud search
+                        yt_search_link = f"https://www.youtube.com/results?search_query={search_query.replace(' ', '+')}"
+                        reply_text += f"\n\n📺 **Watch a quick lesson on YouTube:** [Click here to watch videos on {search_query}]({yt_search_link})"
